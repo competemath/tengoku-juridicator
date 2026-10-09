@@ -43,6 +43,8 @@ DEFAULT_POLICY: dict[str, Any] = {
     "escalate_on_fail": ["mechanical.restatement_match"],
     # A track record counts only when the caller re-derived it from the ledger and names its evidence id.
     "track_record_requires_verification": True,
+    # When true, mechanical, reproducible and judgment records count only if their producer signed them (signing.py).
+    "require_signatures": False,
     # Kinds that are context, not checks: an inconclusive one (a new author with no labelled history) does not hold a case.
     "informational_kinds": ["reproducible.track_record"],
     # Tier reduction (at most one step, never below 0) needs every one of these, all of them falsifiable.

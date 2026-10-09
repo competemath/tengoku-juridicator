@@ -4,7 +4,8 @@ No clock, no randomness, no network, no AI. The same inputs give the same verdic
 arrives in (tests/test_statute.py checks this). The rules, in the order they matter:
 
   R0  Only well formed evidence about this exact commit counts; the author cannot vouch for their own work
-      (an author may only attest, and attestations are shown, not weighed).
+      (an author may only attest, and attestations are shown, not weighed). With `require_signatures`, a record that is
+      not signed by its own producer (see signing.py) is ignored as well.
   R7  Checkers that disagree on the same fact are not a verdict: the case goes to a person (the disagreement may be
       a bug in a checker, which is exactly what we most want to know about).
   R1  A failed mechanical check on a blocking kind rejects the case, however much praise exists.
@@ -48,7 +49,7 @@ def _ids(evs: Iterable[dict]) -> list[str]:
     return sorted({ev["id"] for ev in evs})
 
 
-def _screen(case: dict, evidence: Iterable[Any]) -> tuple[list[dict], list[dict]]:
+def _screen(case: dict, evidence: Iterable[Any], authenticated: frozenset | None = None) -> tuple[list[dict], list[dict]]:
     live, ignored, seen = [], [], set()
     for ev in evidence:
         errors = validate(ev)
@@ -60,6 +61,8 @@ def _screen(case: dict, evidence: Iterable[Any]) -> tuple[list[dict], list[dict]
             ignored.append({"id": ev["id"], "why": "about another commit (stale or misfiled)"})
         elif _is_author(ev, case) and ev["verifiability"] != "attested":
             ignored.append({"id": ev["id"], "why": "the author cannot vouch for their own work"})
+        elif authenticated is not None and ev["verifiability"] != "attested" and ev["id"] not in authenticated:
+            ignored.append({"id": ev["id"], "why": "not signed by its producer (signatures are required)"})
         else:
             seen.add(ev["id"])
             live.append(ev)
@@ -102,10 +105,14 @@ def decide(
     precedents: Iterable[dict] = (),
     standing: dict | None = None,
     verified: Iterable[str] = (),
+    authenticated: Iterable[str] | None = None,
 ) -> dict:
     pol = normalize(policy)
     cls = pol["classes"].get(case["class"], pol["default_class"])
-    live, ignored = _screen(case, evidence)
+    auth = None if authenticated is None else frozenset(authenticated)
+    if pol["require_signatures"] and auth is None:
+        auth = frozenset()  # signatures required and none offered: nothing but attestations counts
+    live, ignored = _screen(case, evidence, auth)
     verified_ids = frozenset(verified)
     escalations: list[tuple[str, str]] = []
 

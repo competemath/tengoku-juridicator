@@ -93,3 +93,64 @@ class LabelCommand(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(["label", "--ledger", path, "--repo", "r", "--head", "xyz", "--label", "accept", "--by", "m"]), 2)
             self.assertEqual(len(Ledger(path).entries()), 1)
+
+
+class AppendCommand(unittest.TestCase):
+    def test_only_lottery_kinds_can_be_appended_and_the_body_must_be_an_object(self):
+        import contextlib
+        import io
+        from juridicator.cli import main
+        from juridicator.ledger import Ledger
+
+        with tempfile.TemporaryDirectory() as d:
+            led, body = os.path.join(d, "l.jsonl"), os.path.join(d, "b.json")
+            with open(body, "w", encoding="utf-8") as fh:
+                json.dump({"commitment": "c" * 64}, fh)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["append", "--ledger", led, "--kind", "lottery_commit", "--body", body]), 0)
+            self.assertEqual(Ledger(led).entries()[0]["kind"], "lottery_commit")
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                main(["append", "--ledger", led, "--kind", "verdict", "--body", body])
+            with open(body, "w", encoding="utf-8") as fh:
+                json.dump([1], fh)
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["append", "--ledger", led, "--kind", "lottery_commit", "--body", body]), 2)
+            self.assertEqual(len(Ledger(led).entries()), 1)
+
+
+class StandingCommand(unittest.TestCase):
+    def test_gate_health_is_written_from_the_canary_verdict(self):
+        import contextlib
+        import io
+        from juridicator.cli import main
+        from tests.helpers import ev
+
+        gate = dict(CASE, **{"class": "gate"})
+        with tempfile.TemporaryDirectory() as d:
+            case, out = os.path.join(d, "case.json"), os.path.join(d, "standing.json")
+            with open(case, "w", encoding="utf-8") as fh:
+                json.dump(gate, fh)
+            for name, outcome, code, health in (("ok.json", "pass", 0, "ACCEPT"), ("bad.json", "fail", 12, "REJECT")):
+                path = os.path.join(d, name)
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump([ev("mechanical.canary", outcome, who="wounder", role="wounder", subject={"case": "c0"})], fh)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(main(["standing", "--case", case, "--evidence", path, "--out", out]), code)
+                with open(out, encoding="utf-8") as fh:
+                    self.assertEqual(json.load(fh)["gate_health"], health)
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["standing", "--case", os.path.join(d, "nope.json"), "--evidence", path, "--out", out]), 2)
+
+    def test_a_non_gate_case_is_refused(self):
+        import contextlib
+        import io
+        from juridicator.cli import main
+
+        with tempfile.TemporaryDirectory() as d:
+            case, ev_path = os.path.join(d, "case.json"), os.path.join(d, "e.json")
+            for path, data in ((case, CASE), (ev_path, [])):
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh)
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["standing", "--case", case, "--evidence", ev_path, "--out", os.path.join(d, "o.json")]), 2)
+            self.assertFalse(os.path.exists(os.path.join(d, "o.json")))

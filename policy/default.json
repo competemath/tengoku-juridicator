@@ -56,6 +56,9 @@
     "raise_if_reject_majority": true
   },
   "independence_min_tier": 2,
+  "informational_kinds": [
+    "reproducible.track_record"
+  ],
   "merit_reduction": {
     "checker_kind": "mechanical.kernel_check",
     "min_independent_checkers": 3,
@@ -64,6 +67,7 @@
     "needs_rebuild_match": true
   },
   "require_gate_health": true,
+  "require_signatures": false,
   "tier_audit_rate": [
     0.05,
     0.2,

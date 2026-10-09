@@ -8,7 +8,7 @@ One program in three repositories, for deciding whether AI-generated content sho
 | [tengoku-praiser](https://github.com/competemath/tengoku-praiser) | credibility | gathers reasons to trust content that anyone can re-check |
 | **tengoku-juridicator** (this one) | decision | weighs both with a fixed statute, history and a tightly leashed AI |
 
-The three share one thing, the evidence record. Read `docs/DESIGN.md` first, then `docs/AI-USE.md` (how AI is, and is not,
+The three share one thing, the evidence record. Read `docs/PIPELINE.md` for the flow, `docs/DESIGN.md`, then `docs/AI-USE.md` (how AI is, and is not,
 used), `docs/SECURITY.md` (what is defended and what is not), `docs/TAU-CETI.md` (what was taken from Tau Ceti and how this
 differs) and `docs/CONTRACT.md`.
 
@@ -27,6 +27,7 @@ differs) and `docs/CONTRACT.md`.
 python3 -m juridicator judge --case case.json --evidence evidence/ --standing standing.json --ledger ledger.jsonl
 # exit 0 ACCEPT, 10 HOLD, 11 ESCALATE, 12 REJECT, 2 bad input
 python3 -m juridicator ledger-verify --ledger ledger.jsonl
+python3 -m juridicator standing | sign | append | label   # see docs/PIPELINE.md
 python3 -m unittest discover -s tests
 ```
 
@@ -34,5 +35,6 @@ Standard library only; no network; no AI is called unless a backend is wired in 
 
 ## Status
 
-A seed: the decision engine and its tests are real; the pipeline wiring, signing, sandbox and live AI backend are on
-`docs/ROADMAP.md`. Private while it matures.
+A working seed: the decision engine, signatures, the ledger and the lottery are real and tested (`docs/PIPELINE.md` runs the
+whole flow through the command lines in a test). Not yet wired to Tengoku's real gates; shadow mode is the next step
+(`docs/ROADMAP.md`). Apache-2.0.

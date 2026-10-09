@@ -42,13 +42,15 @@ policy and statute that turn one into the other.
 - **R2 Independence is partly a fiction while one model family does most of the work.** Authoring, wounding and
   praising may all be the same family. The design's value comes from objective checks and recorded labels, not from the
   roles disagreeing. Tau Ceti states the same limit for their two reviewers.
-- **R3 Sampling-seed grinding.** If the audit lottery is seeded from something the author controls, they can retry until
-  they are not selected. Mitigation is a salt published as a hash in the ledger and revealed later; this version ships the
-  function and the rule, not the publication step.
+- **R3 Sampling-seed grinding, and the withheld reveal.** The audit lottery's salt is committed (as a hash) in the ledger
+  before a batch and revealed after, and the wounder's `lottery plan` fixes batches by ledger order, flagging any verdict
+  written outside a batch for audit. What remains: whoever holds the salt can withhold the reveal. A batch left open is
+  listed as pending, so it is visible, but not prevented.
 - **R4 The ledger is tamper-evident, not signed.** Someone with write access to the repository who also rewrites the
-  published head defeats it. Signing (and a GitHub App identity for writes) is on the roadmap.
-- **R5 Producer identity is a string.** Evidence says who produced it, but nothing yet proves it. Until producers sign
-  their records or run under distinct bot identities, a compromised workflow could impersonate another producer.
+  published head defeats it. Publish `head()` somewhere the author cannot edit; a GitHub App identity for writes is on the roadmap.
+- **R5 Producer identity needs a key.** Records can be signed (`signing.py`, SSH signatures checked against the
+  maintainers' `allowed_signers`), and with `require_signatures` unsigned mechanical, reproducible and judgment records are
+  ignored. Off by default until producers have keys. A stolen key signs anything; signing proves who, not that their tool was honest.
 - **R6 The canary corpus only covers defects we thought of.** It guards against regressions and known tricks, not
   unknown ones. The sensitivity probes and the red-team loop are meant to widen it; neither is a guarantee.
 - **R7 Human labels are scarce.** Calibration, the precedent signal and any move past AI level 2 all depend on people

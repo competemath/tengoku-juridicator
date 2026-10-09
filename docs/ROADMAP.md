@@ -1,14 +1,15 @@
 # Roadmap
 
-Done in this seed: the contract, the statute, policy-as-data, precedents, ledger, marker, AI valve and calibration lock,
-CLI, 70+ tests (the statute's tests were checked by deliberately breaking it).
+Done: the contract, the statute (rules version 2), policy-as-data, precedents, ledger, marker, AI valve and calibration lock,
+CLI, signatures and gate-health standing, the ledger-fixed audit lottery (in the wounder), and an end-to-end test of the
+pipeline through the command lines. All of it checked by deliberately breaking it.
 
 Next, in order:
-1. Wire the pipeline in shadow mode: run the juridicator on real Tengoku PRs, record verdicts, change nothing. Compare
-   with what people decide. This is where labels start.
-2. Planted-defect canaries running in the wounder against Tengoku's real gates; publish gate health as the standing input.
-3. Signed records and a GitHub App identity for the judge's writes; publish the ledger head outside the repository.
-4. Audit lottery with a committed-then-revealed salt (closes residual risk R3).
-5. A live AI backend at level 1 (explanations only), then level 2, measured against labels.
-6. Same shape applied to Leak submissions.
+1. Shadow mode on real Tengoku pull requests (`integration/trust-check.yml.example`): record verdicts, change nothing,
+   compare with what people decide. This is where labels start.
+2. Point the canaries at Tengoku's real gates (the corpus runs today against a reference text gate).
+3. Give producers keys and turn `require_signatures` on; publish the ledger head outside the repository; a GitHub App
+   identity for the judge's writes.
+4. A live AI backend at level 1 (explanations only), then level 2, measured against labels.
+5. Same shape applied to Leak submissions.
 Deliberately not planned: letting any AI approve anything.

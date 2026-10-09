@@ -1,0 +1,50 @@
+# A TEMPLATE, not enabled: copy into a repository's .github/workflows/ to run the trust pipeline in SHADOW mode on pull
+# requests. It reads, decides and reports in the job summary. It cannot write to the repository and has no effect on
+# merging: it is not a required check. Pin the three repositories to commits you have reviewed.
+name: trust-check (shadow)
+on:
+  pull_request:
+    paths: ["Tengoku/**", "data/**"]
+permissions: {}
+concurrency:
+  group: trust-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+env:
+  # Replace with reviewed commit SHAs of the three repositories.
+  JURIDICATOR_SHA: "0000000000000000000000000000000000000000"
+  WOUNDER_SHA: "0000000000000000000000000000000000000000"
+  PRAISER_SHA: "0000000000000000000000000000000000000000"
+jobs:
+  judge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with: { egress-policy: audit }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, path: tengoku }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { repository: competemath/tengoku-juridicator, ref: "${{ env.JURIDICATOR_SHA }}", path: tengoku-juridicator, persist-credentials: false }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { repository: competemath/tengoku-wounder, ref: "${{ env.WOUNDER_SHA }}", path: tengoku-wounder, persist-credentials: false }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { repository: competemath/tengoku-praiser, ref: "${{ env.PRAISER_SHA }}", path: tengoku-praiser, persist-credentials: false }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: "3.12" }
+      - name: Gate health (the wounder's canaries against our gate)
+        env: { HEAD_SHA: "${{ github.event.pull_request.head.sha }}", REPO: "${{ github.repository }}" }
+        run: |
+          cd tengoku-wounder
+          python3 -m wounder run-canaries --corpus corpus --gate-cmd "python3 ../tengoku/scripts/ci/gate.py" \
+            --repo "$REPO" --head "$HEAD_SHA" --class gate --out "$RUNNER_TEMP/gate-evidence"
+          printf '{"repo":"%s","head_sha":"%s","class":"gate"}' "$REPO" "$HEAD_SHA" > "$RUNNER_TEMP/gate-case.json"
+          cd ../tengoku-juridicator
+          python3 -m juridicator standing --case "$RUNNER_TEMP/gate-case.json" --evidence "$RUNNER_TEMP/gate-evidence" \
+            --out "$RUNNER_TEMP/standing.json" || true
+          { echo "### Gate health"; echo '```json'; cat "$RUNNER_TEMP/standing.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      # The remaining steps (collect the content evidence, sign, judge, plan the lottery) follow docs/PIPELINE.md. They are
+      # left out of this template on purpose: which tools produce which evidence is for the repository to decide.
