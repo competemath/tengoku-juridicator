@@ -9,7 +9,10 @@ arrives in (tests/test_statute.py checks this). The rules, in the order they mat
       a bug in a checker, which is exactly what we most want to know about).
   R1  A failed mechanical check on a blocking kind rejects the case, however much praise exists.
   R1b A failed reproducible check holds the case for a re-run; failed by two independent producers it rejects.
-  R9  A producer who declared a manifest of checks must report every one of them. Silence is not a pass.
+  R9  A producer who declared a manifest of checks must report every one of them, and for every subject the manifest
+      lists under `expected` (a partial report is not a report). Silence is not a pass.
+  R12 A check that could not finish (inconclusive) and was never passed by anyone for the same subject holds the case:
+      a crash is not a pass, and silence about one planted defect is not a healthy gate.
   R3  Every kind the class requires needs a mechanical pass, from as many independent producers as the class says.
   R11 The gate's own health (planted-defect canaries) must be proven, or nothing is accepted.
   R5  A reviewer's concern escalates; only a person clears it. R10: a reviewer from the author's own model family
@@ -27,7 +30,7 @@ from . import precedent as prec
 from .evidence import canonical_json, sha256_text, validate
 from .policy import digest, normalize
 
-RULES_VERSION = "1"
+RULES_VERSION = "2"
 VERDICT_SCHEMA = "tengoku-verdict/1"
 DECISIONS = ("ACCEPT", "HOLD", "ESCALATE", "REJECT")
 
@@ -65,7 +68,7 @@ def _screen(case: dict, evidence: Iterable[Any]) -> tuple[list[dict], list[dict]
     return live, ignored
 
 
-def _merit_ok(live: list[dict], pol: dict) -> tuple[bool, list[str]]:
+def _merit_ok(live: list[dict], pol: dict, verified: frozenset) -> tuple[bool, list[str]]:
     m = pol["merit_reduction"]
     unmet = []
     checkers = {e["producer"]["identity"] for e in live
@@ -80,10 +83,14 @@ def _merit_ok(live: list[dict], pol: dict) -> tuple[bool, list[str]]:
         unmet.append("no matching independent rebuild")
     floor = m.get("min_track_lower_bound")
     if floor is not None:
+        # A track record is a number somebody wrote down. It counts only when the caller (who holds the ledger) has
+        # re-derived it and says so by evidence id; otherwise it is shown, not weighed.
+        need_check = pol.get("track_record_requires_verification", True)
         bounds = [e["details"].get("lower_bound") for e in live
-                  if e["kind"] == "reproducible.track_record" and e["outcome"] == "pass"]
+                  if e["kind"] == "reproducible.track_record" and e["outcome"] == "pass"
+                  and (not need_check or e["id"] in verified)]
         if not any(isinstance(b, (int, float)) and b >= floor for b in bounds):
-            unmet.append("track record below the floor or absent")
+            unmet.append("track record below the floor, absent, or not re-derived from the ledger")
     return not unmet, unmet
 
 
@@ -94,10 +101,13 @@ def decide(
     *,
     precedents: Iterable[dict] = (),
     standing: dict | None = None,
+    verified: Iterable[str] = (),
 ) -> dict:
     pol = normalize(policy)
     cls = pol["classes"].get(case["class"], pol["default_class"])
     live, ignored = _screen(case, evidence)
+    verified_ids = frozenset(verified)
+    escalations: list[tuple[str, str]] = []
 
     reasons: list[dict] = []
     missing: list[str] = []
@@ -117,14 +127,23 @@ def decide(
 
     # R1: failed mechanical checks on blocking kinds (a human reviewer's rejection counts the same).
     rejects = []
+    disputed = []
     for key, evs in sorted(by_key.items()):
         if key in conflicts:
             continue
         for ev in evs:
             if ev["outcome"] == "fail" and any(fnmatch.fnmatch(ev["kind"], g) for g in pol["blocking"]):
-                rejects.append(ev)
+                if any(fnmatch.fnmatch(ev["kind"], g) for g in pol["escalate_on_fail"]):
+                    disputed.append(ev)
+                else:
+                    rejects.append(ev)
     for ev in rejects:
         why("R1", f"{ev['kind']} failed: {ev['claim']}", [ev])
+    # Some mechanical failures do not say which side is wrong (a restatement that does not match: the original or
+    # the second reading may be the faulty one). Those go to a person instead of rejecting outright.
+    for ev in disputed:
+        escalations.append(("R1", f"{ev['kind']} failed and it is unclear which side is wrong: {ev['claim']}"))
+        why("R1", f"{ev['kind']} failed and it is unclear which side is wrong: {ev['claim']}", [ev])
     for ev in live:
         if ev["producer"]["role"] == "human" and ev["kind"] == "judgment.human_review" and ev["outcome"] == "fail":
             rejects.append(ev)
@@ -152,6 +171,19 @@ def decide(
         declared = ev["details"].get("checks")
         if not isinstance(declared, list):
             continue
+        expected = ev["details"].get("expected")
+        if isinstance(expected, list):
+            for item in expected:
+                if not (isinstance(item, dict) and isinstance(item.get("kind"), str)):
+                    continue
+                k, subj = item["kind"], canonical_json(item.get("subject"))
+                got = any(_key(e) == (k, subj) and e["producer"]["identity"] == ev["producer"]["identity"]
+                          and e["outcome"] in ("pass", "fail", "inconclusive") for e in live)
+                if not got:
+                    text = f"{ev['producer']['identity']} declared {k} for {subj} and did not report it"
+                    holds.append(("R9", text))
+                    why("R9", text, [ev])
+                    missing.append(k)
         for kind in sorted({d for d in declared if isinstance(d, str)}):
             done = any(e["kind"] == kind and e["producer"]["identity"] == ev["producer"]["identity"]
                        and e["outcome"] in ("pass", "fail", "inconclusive") for e in live)
@@ -159,6 +191,19 @@ def decide(
                 holds.append(("R9", f"{ev['producer']['identity']} declared {kind} and did not report it"))
                 why("R9", f"{ev['producer']['identity']} declared {kind} and did not report it", [ev])
                 missing.append(kind)
+
+    # R12: a check that could not finish, with no pass for the same subject from anyone.
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for ev in live:
+        if ev["verifiability"] in ("mechanical", "reproducible"):
+            groups.setdefault(_key(ev), []).append(ev)
+    for (kind, subj), evs in sorted(groups.items()):
+        if kind in pol["informational_kinds"]:
+            continue
+        if any(e["outcome"] == "inconclusive" for e in evs) and not any(e["outcome"] == "pass" for e in evs):
+            text = f"{kind} could not finish for {subj} and nobody passed it: re-run it"
+            holds.append(("R12", text))
+            why("R12", text, [e for e in evs if e["outcome"] == "inconclusive"])
 
     # R3: what the class requires.
     need = dict.fromkeys(cls["required"], 1)
@@ -187,7 +232,7 @@ def decide(
     if any(e["outcome"] == "inconclusive" and e["verifiability"] in ("mechanical", "reproducible") for e in live):
         tier += 1
         why("T2", "a check was inconclusive: scrutiny raised one step")
-    ok, unmet = _merit_ok(live, pol)
+    ok, unmet = _merit_ok(live, pol, verified_ids)
     if ok and tier > 0:
         tier -= 1
         why("T3", "independent checkers, matching rebuild, consistent provenance and a sound track record: scrutiny lowered one step")
@@ -195,7 +240,6 @@ def decide(
 
     # R5 / R10: reviewers' concerns need a person.
     cleared = any(e["producer"]["role"] == "human" and e["kind"] == "judgment.human_review" and e["outcome"] == "pass" for e in live)
-    escalations: list[tuple[str, str]] = []
     for ev in live:
         if ev["verifiability"] == "judgment" and ev["outcome"] == "fail" and ev["producer"]["role"] != "human":
             escalations.append(("R5", f"a reviewer raised a concern: {ev['claim']}"))

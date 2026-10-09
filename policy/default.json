@@ -47,6 +47,9 @@
     "independent": {},
     "required": []
   },
+  "escalate_on_fail": [
+    "mechanical.restatement_match"
+  ],
   "history": {
     "k": 3,
     "min_labeled": 2,
@@ -67,5 +70,6 @@
     0.5,
     1.0
   ],
+  "track_record_requires_verification": true,
   "version": 1
 }

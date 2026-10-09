@@ -162,16 +162,18 @@ class Reviewers(unittest.TestCase):
 class Scrutiny(unittest.TestCase):
     def test_merit_lowers_tier_by_one_only_when_all_of_it_is_falsifiable_and_present(self):
         base = run(good_set())["tier"]
-        full = run(good_set() + merit_set())
+        merit = merit_set()
+        verified = [e["id"] for e in merit]
+        full = run(good_set() + merit, verified=verified)
         self.assertEqual(full["tier"], base - 1)
-        for drop in range(len(merit_set())):
-            partial = merit_set()[:drop] + merit_set()[drop + 1:]
-            v = run(good_set() + partial)
+        for drop in range(len(merit)):
+            partial = merit[:drop] + merit[drop + 1:]
+            v = run(good_set() + partial, verified=verified)
             self.assertEqual(v["tier"], base, f"dropping merit item {drop} must keep the tier")
 
     def test_weak_track_record_does_not_lower_tier(self):
         weak = [ev("reproducible.track_record", who="praiser", role="praiser", details={"lower_bound": 0.5})]
-        v = run(good_set() + merit_set()[:3] + weak)
+        v = run(good_set() + merit_set()[:3] + weak, verified=[e["id"] for e in weak])
         self.assertEqual(v["tier"], run(good_set())["tier"])
 
     def test_inconclusive_check_raises_tier(self):
@@ -187,7 +189,8 @@ class Scrutiny(unittest.TestCase):
         self.assertEqual(run(good_set(), precedents=good)["tier"], base)
 
     def test_tier_is_clamped_and_audit_rate_follows_it(self):
-        v = run(good_set() + merit_set())
+        merit = merit_set()
+        v = run(good_set() + merit, verified=[e["id"] for e in merit])
         self.assertEqual(v["audit_rate"], 0.05)
         self.assertGreaterEqual(v["tier"], 0)
 

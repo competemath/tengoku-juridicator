@@ -69,3 +69,27 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LabelCommand(unittest.TestCase):
+    def test_label_is_appended_to_the_chain_and_bad_sha_is_refused(self):
+        import contextlib
+        import io
+        import os
+        import tempfile
+
+        from juridicator.cli import main
+        from juridicator.ledger import Ledger
+
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ledger.jsonl")
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = main(["label", "--ledger", path, "--repo", "r", "--head", "a" * 40, "--label", "reject", "--by", "maintainer"])
+            self.assertEqual(code, 0)
+            entries = Ledger(path).entries()
+            self.assertEqual(entries[0]["kind"], "label")
+            self.assertEqual(entries[0]["body"]["label"], "reject")
+            self.assertEqual(Ledger(path).verify(), (True, None))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["label", "--ledger", path, "--repo", "r", "--head", "xyz", "--label", "accept", "--by", "m"]), 2)
+            self.assertEqual(len(Ledger(path).entries()), 1)

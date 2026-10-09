@@ -33,6 +33,30 @@ tengoku-praiser  ──┘                          └── standing "gate hea
 6. Bind every record to the exact `head_sha` it was produced for.
 7. Say whether AI was used, in which role, which model and which model family.
 
+## Rules added in version 2 (found by the sibling repositories while building against this one)
+
+8. **Complete means every subject.** A manifest may list `details.expected`: a list of `{kind, subject}`. Each one must
+   be reported by the same producer, or the case holds (R9). A manifest with only `checks` enforces the kind, not each subject.
+   Give every canary case its own `subject`; without one, a pass and a fail on different cases look like a disagreement (R7).
+9. **A manifest covers its own producer.** One manifest per producer identity. A manifest from one identity does not
+   cover results from another, so each independent checker declares its own.
+10. **A crash is not a pass.** An inconclusive mechanical or reproducible record that nobody passed for the same
+    `(kind, subject)` holds the case (R12).
+11. **Numbers somebody wrote down are not believed.** `reproducible.track_record` lowers scrutiny only when the caller
+    re-derived it from the ledger (the praiser's `verify_against_ledger`) and passes its evidence id to the judge
+    (`decide(..., verified=ids)`, CLI `--verified-ids`). Otherwise it is shown, not weighed.
+12. **Which side is wrong?** `escalate_on_fail` (default `mechanical.restatement_match`) lists kinds whose failure
+    goes to a person rather than rejecting, because either the original or the second reading may be the faulty one.
+13. Records should carry only `{repo, head_sha, class}` in `case`, not the author.
+
+## The ledger entry (not in the evidence file, so documented here)
+
+An entry is `{seq, kind, body, prev, hash}` with `hash = "sha256:" + sha256(canonical_json({seq, kind, body, prev}))`
+and `prev` of the first entry the genesis value `"sha256:" + "0" * 64`. Entry kinds: `evidence` (body is an evidence
+record), `verdict` (body is a `tengoku-verdict/1`), and `label` (body `{repo, head_sha, label: "accept"|"reject", by}`),
+which a person appends after the fact; track records count only labelled outcomes. The praiser re-implements this hash and
+tests it against the real `Ledger`. The reference is `juridicator/ledger.py`.
+
 ## Vendoring
 
 Each consumer keeps `vendor/juridicator_evidence.py` (a verbatim copy) and `vendor/EVIDENCE.sha256`. Its tests fail if the

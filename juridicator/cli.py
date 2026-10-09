@@ -47,10 +47,25 @@ def main(argv: list[str] | None = None) -> int:
     j.add_argument("--precedents")
     j.add_argument("--standing")
     j.add_argument("--ledger")
+    j.add_argument("--verified-ids", help="JSON list of evidence ids the caller re-derived itself (e.g. track records)")
     v = sub.add_parser("ledger-verify", help="check a ledger's hash chain")
     v.add_argument("--ledger", required=True)
     v.add_argument("--head", help="the published head hash, to catch a removed tail")
+    lb = sub.add_parser("label", help="record a person's after-the-fact verdict on a case")
+    lb.add_argument("--ledger", required=True)
+    lb.add_argument("--repo", required=True)
+    lb.add_argument("--head", required=True)
+    lb.add_argument("--label", required=True, choices=["accept", "reject"])
+    lb.add_argument("--by", required=True, help="the person's identity")
     args = ap.parse_args(argv)
+
+    if args.cmd == "label":
+        if len(args.head) != 40 or any(c not in "0123456789abcdef" for c in args.head):
+            print("juridicator: bad input: --head must be a 40 character lowercase hex sha", file=sys.stderr)
+            return 2
+        entry = Ledger(args.ledger).append("label", {"repo": args.repo, "head_sha": args.head, "label": args.label, "by": args.by})
+        print(json.dumps({"seq": entry["seq"], "hash": entry["hash"]}))
+        return 0
 
     if args.cmd == "ledger-verify":
         ok, bad = Ledger(args.ledger).verify(args.head)
@@ -63,6 +78,12 @@ def main(argv: list[str] | None = None) -> int:
         policy = pol.load(args.policy)
         evidence = load_evidence(args.evidence)
         precedents = _read_json_records(args.precedents) if args.precedents else []
+        verified = []
+        if args.verified_ids:
+            with open(args.verified_ids, encoding="utf-8") as fh:
+                verified = json.load(fh)
+            if not (isinstance(verified, list) and all(isinstance(x, str) for x in verified)):
+                raise ValueError("--verified-ids must be a JSON list of strings")
         standing = None
         if args.standing:
             with open(args.standing, encoding="utf-8") as fh:
@@ -70,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, pol.PolicyError) as exc:
         print(f"juridicator: bad input: {exc}", file=sys.stderr)
         return 2
-    verdict = decide(case, evidence, policy, precedents=precedents, standing=standing)
+    verdict = decide(case, evidence, policy, precedents=precedents, standing=standing, verified=verified)
     if args.ledger:
         ledger = Ledger(args.ledger)
         known = {e["body"].get("id") for e in ledger.entries() if e["kind"] == "evidence"}

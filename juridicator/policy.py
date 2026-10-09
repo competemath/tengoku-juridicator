@@ -39,6 +39,12 @@ DEFAULT_POLICY: dict[str, Any] = {
     "default_class": DEFAULT_CLASS,
     # A failed mechanical check on a kind matching one of these globs rejects the case, whoever produced it.
     "blocking": ["mechanical.*"],
+    # ...except these, whose failure does not say which side is wrong: they go to a person instead.
+    "escalate_on_fail": ["mechanical.restatement_match"],
+    # A track record counts only when the caller re-derived it from the ledger and names its evidence id.
+    "track_record_requires_verification": True,
+    # Kinds that are context, not checks: an inconclusive one (a new author with no labelled history) does not hold a case.
+    "informational_kinds": ["reproducible.track_record"],
     # Tier reduction (at most one step, never below 0) needs every one of these, all of them falsifiable.
     "merit_reduction": {
         "min_independent_checkers": 3,
