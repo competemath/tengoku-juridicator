@@ -1,0 +1,8 @@
+# Rules, policy and the statute are written by people. An AI may propose a change; it cannot merge one.
+/policy/                    @mikael-bashir
+/juridicator/statute.py     @mikael-bashir
+/juridicator/policy.py      @mikael-bashir
+/juridicator/evidence.py    @mikael-bashir
+/docs/SECURITY.md           @mikael-bashir
+/docs/AI-USE.md             @mikael-bashir
+/.github/                   @mikael-bashir
