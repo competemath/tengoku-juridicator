@@ -31,7 +31,8 @@ python3 -m juridicator standing | sign | append | label   # see docs/PIPELINE.md
 python3 -m unittest discover -s tests
 ```
 
-Standard library only; no network; no AI is called unless a backend is wired in (none is).
+Standard library only; no network; no AI is called unless a backend is wired in (none is). The AI prompt and answer code (`vendor/warden/`) is
+vendored byte for byte from [tengoku-warden](https://github.com/competemath/tengoku-warden) and pinned to a commit; a test fails on any drift.
 
 ## Status
 

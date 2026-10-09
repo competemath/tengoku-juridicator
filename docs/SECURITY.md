@@ -28,7 +28,8 @@ policy and statute that turn one into the other.
 | Selective reporting | declared manifests must be reported in full; silence holds the case | R9 |
 | Stale or misfiled evidence | evidence binds to the exact commit; anything else is ignored | R0 |
 | Gate quietly stops working | planted-defect canaries must keep failing; unproven gate health holds everything | R11 |
-| Prompt injection into an AI reader | whitelisted sanitized input, untrusted-data notice, one-time marker, no tools, one-way valve | `ai.py`, `marker.py` |
+| Prompt injection into an AI reader | whitelisted sanitized input, the warden's notice with per-call random fences, truncation told to the reader, one-time marker with a validated answer schema, no tools, one-way valve, an injection report escalates | `ai.py`, `marker.py`, `vendor/warden/` |
+| Drift in the vendored warden code | hash pin with the warden commit; a test fails on any difference | `vendor/warden/PIN`, `tests/test_warden_vendor.py` |
 | AI reviewer shares author's blind spots | model family recorded; same family is not independent at higher tiers | R10 |
 | Tampering with history | hash-chained ledger; publish the head where authors cannot edit | `ledger.py` |
 | Author grinds commits to dodge audits | audit sampling uses a salt the author cannot see until later (see R3 below) | wounder `sampler.py` |
